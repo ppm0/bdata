@@ -7,7 +7,7 @@ from bdata_model import Base
 
 cfg = json.loads(open('config.json').read())
 
-engine = create_engine(cfg['db'], echo=False, echo_pool = False, pool_size=8, max_overflow = 64)  # , pool_size=20, max_overflow=100
+engine = create_engine(cfg['db'], echo=False, echo_pool=False, pool_size=2, max_overflow=-1)
 Session = sessionmaker(bind=engine)
 
 if __name__ == '__main__':
