@@ -35,7 +35,7 @@ DISABLED_EXCHANGES = ['bitfinex2', 'anxpro', 'bcex', 'vaultoro', 'coss', 'coolco
                       'adara',  # TypeError '>' not supported between instances of 'NoneType' and 'NoneType'
                       'tidex',  # ExchangeNotAvailable tidex {"success":0,"error":"not available"}
                       'liquid',  # DDoSProtection liquid
-                      'okex', # only okex3
+                      'okex3',   # use only okex
                       ]
 
 
