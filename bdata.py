@@ -35,7 +35,8 @@ DISABLED_EXCHANGES = ['bitfinex2', 'anxpro', 'bcex', 'vaultoro', 'coss', 'coolco
                       'adara',  # TypeError '>' not supported between instances of 'NoneType' and 'NoneType'
                       'tidex',  # ExchangeNotAvailable tidex {"success":0,"error":"not available"}
                       'liquid',  # DDoSProtection liquid
-                      'okex3',   # use only okex
+                      'okex3',  # use only okex
+                      'fcoin', 'fcoinjp',  # 20200220 exit scam
                       ]
 
 
@@ -112,7 +113,7 @@ def snap_market_book(ts: datetime.datetime, exchange: ccxt.Exchange, base: str, 
 
 
 def snap_trades(ts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote: str):
-    logging.info('{}::{} snap trades'.format(exchange.id, base + '/' + quote))
+    logging.info('{}::{} snap trades_tmp'.format(exchange.id, base + '/' + quote))
     session = Session()
     try:
         try:
@@ -127,43 +128,59 @@ def snap_trades(ts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote
                 since = last.ts
             else:
                 last = None
-                since = exchange.milliseconds() - exchange.milliseconds() % 86400000 - datetime.datetime.now().timetuple().tm_yday * 86400000
-            at = []
+                since = exchange.milliseconds() - exchange.milliseconds() % 86400000 - \
+                        datetime.datetime.now().timetuple().tm_yday * 86400000
+            trades_all = []
             market = base + '/' + quote
             if last and last.eid:
                 last_id = last.eid
             else:
                 last_id = ''
-            while since < exchange.milliseconds() and len(at) < TRADES_LIMIT:
-                trades = exchange.fetch_trades(market, since)
-                if len(trades) > 0:
-                    if last_id == trades[-1]['id']:
+
+            trades_prior = None
+            if exchange.id.startswith('binance'):
+                while since < exchange.milliseconds() and len(trades_all) < TRADES_LIMIT:
+                    trades_tmp = exchange.fetch_trades(symbol=market, since = since)
+                    if json.dumps(trades_prior, sort_keys=True) == json.dumps(trades_tmp, sort_keys=True):
+                        since += 1800000
+                    else:
+                        if len(trades_tmp) > 0:
+                            trades_all += trades_tmp
+                            since = trades_tmp[-1]['timestamp']
+                        else:
+                            since += 1800000
+                    trades_prior = deepcopy(trades_tmp)
+            else:
+                while since < exchange.milliseconds() and len(trades_all) < TRADES_LIMIT:
+                    trades_tmp = exchange.fetch_trades(market, since)
+                    if len(trades_tmp) > 0:
+                        if last_id == trades_tmp[-1]['id']:
+                            break
+                        since = trades_tmp[-1]['timestamp']
+                        last_id = trades_tmp[-1]['id']
+                        trades_all += trades_tmp
+                    else:
                         break
-                    since = trades[-1]['timestamp']
-                    last_id = trades[-1]['id']
-                    at += trades
-                else:
-                    break
 
             # duplicates
             found = True
             while found:
                 found = False
-                for i in range(1, len(at)):
-                    if at[i - 1]['id'] == at[i]['id']:
-                        del at[i - 1]
+                for i in range(1, len(trades_all)):
+                    if trades_all[i - 1]['id'] == trades_all[i]['id']:
+                        del trades_all[i - 1]
                         found = True
                         break
             if last and last.eid:
-                i = 0
-                while (i < len(at)) and (at[i]['id'] != last.eid):
-                    i += 1
-                if i < len(at):
-                    at = at[i + 1:]
+                i2 = 0
+                while (i2 < len(trades_all)) and (trades_all[i2]['id'] != last.eid):
+                    i2 += 1
+                if i2 < len(trades_all):
+                    trades_all = trades_all[i2 + 1:]
 
-            if len(at) > 0:
-                logging.info('{}::{} trades {}'.format(exchange.id, market, len(at)))
-                for e in at:
+            if len(trades_all) > 0:
+                logging.info('{}::{} trades_tmp {}'.format(exchange.id, market, len(trades_all)))
+                for e in trades_all:
                     session.add(
                         Trade(exchange_market_id=em.exchange_market_id,
                               ts=e['timestamp'],
@@ -241,7 +258,7 @@ if __name__ == '__main__':
                     exchange.proxies = cfg['proxies']
                 m = exchange.load_markets()
                 exchanges.append(exchange)
-                exchange.enableRateLimit = False
+                exchange.enableRateLimit = True
                 exchange.timeout = 60000
                 markets.append(m)
             except Exception as e:
