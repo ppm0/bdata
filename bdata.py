@@ -258,7 +258,7 @@ if __name__ == '__main__':
                     exchange.proxies = cfg['proxies']
                 m = exchange.load_markets()
                 exchanges.append(exchange)
-                exchange.enableRateLimit = True
+                exchange.enableRateLimit = False
                 exchange.timeout = 60000
                 markets.append(m)
             except Exception as e:
