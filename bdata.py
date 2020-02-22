@@ -16,6 +16,10 @@ from sqlalchemy import and_, func
 from bdata_db import Session
 from bdata_model import Token, ExchangeMarket, Exchange, BookSnap, BookSnapBid, BookSnapAsk, Trade
 
+KUCOIN = 'kucoin'
+
+BINANCE = 'binance'
+
 args: Optional[Namespace] = None
 base_list: list = []
 quote_list: list = []
@@ -52,10 +56,8 @@ def decimalize(book):
 
 
 def book_limit(e):
-    if e.id == 'kucoin':
+    if e.id == KUCOIN:
         return 100
-    elif e.id == 'fcoin' or e.id == 'fcoinjp':
-        return 150
     else:
         return BOOK_LIMIT
 
@@ -143,7 +145,7 @@ def snap_trades(ts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote
                 last_id = ''
 
             trades_prior = None
-            if exchange.id.startswith('binance'):
+            if exchange.id.startswith(BINANCE):
                 while since < exchange.milliseconds() and len(trades_all) < TRADES_LIMIT:
                     trades_tmp = exchange.fetch_trades(symbol=market, since=since)
                     if json.dumps(trades_prior, sort_keys=True) == json.dumps(trades_tmp, sort_keys=True):
