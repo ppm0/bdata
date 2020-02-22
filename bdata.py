@@ -4,11 +4,11 @@ import json
 import logging
 import sys
 import time
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 from copy import deepcopy
 from decimal import Decimal
 from enum import Enum
-from typing import Tuple
+from typing import Tuple, Optional
 
 import ccxt
 from sqlalchemy import and_, func
@@ -16,12 +16,9 @@ from sqlalchemy import and_, func
 from bdata_db import Session
 from bdata_model import Token, ExchangeMarket, Exchange, BookSnap, BookSnapBid, BookSnapAsk, Trade
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
-
-args = []
-base_list = []
-quote_list = []
+args: Optional[Namespace] = None
+base_list: list = []
+quote_list: list = []
 
 BOOK_LIMIT = 50
 TRADES_LIMIT = 100000
@@ -95,7 +92,7 @@ def ensure_exchange_market(session, exchange, base, quote) -> Tuple[Exchange, Ex
     return (e, em, bt, qt)
 
 
-def snap_market_book(ts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote: str):
+def snap_book(ts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote: str):
     logging.info('{}::{} snap book'.format(exchange.id, base + '/' + quote))
     session = Session()
     try:
@@ -187,7 +184,7 @@ def snap_trades(ts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote
                     trades_all = trades_all[i2 + 1:]
 
             if len(trades_all) > 0:
-                logging.info('{}::{} trades_tmp {}'.format(exchange.id, market, len(trades_all)))
+                logging.info('{}::{} len={}'.format(exchange.id, market, len(trades_all)))
                 for e in trades_all:
                     session.add(
                         Trade(exchange_market_id=em.exchange_market_id,
@@ -209,7 +206,7 @@ def snap_trades(ts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote
 def snap(exchange: ccxt.Exchange, market: dict, ts: datetime, snap_target: SnapTarget):
     try:
         if snap_target in [SnapTarget.ALL, SnapTarget.BOOK]:
-            snap_market_book(ts, exchange, market['base'], market['quote'])
+            snap_book(ts, exchange, market['base'], market['quote'])
         if snap_target in [SnapTarget.ALL, SnapTarget.TRADE]:
             snap_trades(ts, exchange, market['base'], market['quote'])
     except Exception as e:
@@ -304,4 +301,6 @@ def bdata():
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S')
     bdata()
