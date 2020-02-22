@@ -7,6 +7,7 @@ import time
 from argparse import ArgumentParser
 from copy import deepcopy
 from decimal import Decimal
+from enum import Enum
 from typing import Tuple
 
 import ccxt
@@ -24,6 +25,13 @@ quote_list = []
 
 BOOK_LIMIT = 50
 TRADES_LIMIT = 100000
+
+
+class SnapTarget(Enum):
+    ALL = "all"
+    BOOK = "book"
+    TRADE = "trade"
+
 
 TOP_EXCHANGES = ['hitbtc', 'bitfinex', 'binance', 'huobipro', 'kraken', 'zb', 'coinbasepro', 'okex', 'bittrex',
                  'bitstamp',
@@ -113,7 +121,7 @@ def snap_market_book(ts: datetime.datetime, exchange: ccxt.Exchange, base: str, 
 
 
 def snap_trades(ts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote: str):
-    logging.info('{}::{} snap trades_tmp'.format(exchange.id, base + '/' + quote))
+    logging.info('{}::{} snap trades'.format(exchange.id, base + '/' + quote))
     session = Session()
     try:
         try:
@@ -140,7 +148,7 @@ def snap_trades(ts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote
             trades_prior = None
             if exchange.id.startswith('binance'):
                 while since < exchange.milliseconds() and len(trades_all) < TRADES_LIMIT:
-                    trades_tmp = exchange.fetch_trades(symbol=market, since = since)
+                    trades_tmp = exchange.fetch_trades(symbol=market, since=since)
                     if json.dumps(trades_prior, sort_keys=True) == json.dumps(trades_tmp, sort_keys=True):
                         since += 1800000
                     else:
@@ -198,10 +206,12 @@ def snap_trades(ts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote
         session.close()
 
 
-def snap(exchange, market, ts):
+def snap(exchange: ccxt.Exchange, market: dict, ts: datetime, snap_target: SnapTarget):
     try:
-        snap_market_book(ts, exchange, market['base'], market['quote'])
-        snap_trades(ts, exchange, market['base'], market['quote'])
+        if snap_target in [SnapTarget.ALL, SnapTarget.BOOK]:
+            snap_market_book(ts, exchange, market['base'], market['quote'])
+        if snap_target in [SnapTarget.ALL, SnapTarget.TRADE]:
+            snap_trades(ts, exchange, market['base'], market['quote'])
     except Exception as e:
         logging.error(
             '{}::{} {} {}'.format(exchange.id, market['symbol'], sys.exc_info()[0].__name__, sys.exc_info()[1]))
@@ -211,8 +221,7 @@ def market_filter(market) -> bool:
     global base_list, quote_list
     return market['base'] and market['quote'] and \
            (market['base'] in base_list or base_list[0] == '*') and \
-           (market['quote'] in quote_list or quote_list[0] == '*') and \
-           '/' in market['symbol']
+           (market['quote'] in quote_list or quote_list[0] == '*') and '/' in market['symbol']
 
 
 def exchange_filter(exchange) -> bool:
@@ -227,16 +236,17 @@ def last_ts():
     return ts + datetime.timedelta(seconds=s)
 
 
-if __name__ == '__main__':
+def bdata():
     cfg = json.loads(open('config.json').read())
 
     parser = ArgumentParser()
     parser.add_argument('--exchange', required=True)
     parser.add_argument('--interval', default=300, type=int)
+    parser.add_argument('--snap_target', type=SnapTarget, choices=list(SnapTarget), default=SnapTarget.ALL)
     parser.add_argument('--base', required=True)
     parser.add_argument('--quote', required=True)
     parser.add_argument('--debug', action='store_true')
-
+    global args
     args = parser.parse_args()
     if args.exchange == '*':
         exchange_list = ccxt.exchanges
@@ -245,6 +255,9 @@ if __name__ == '__main__':
                 exchange_list.remove(e)
     else:
         exchange_list = args.exchange.split(',')
+
+    global base_list, quote_list
+
     base_list = args.base.split(',')
     quote_list = args.quote.split(',')
 
@@ -258,7 +271,7 @@ if __name__ == '__main__':
                     exchange.proxies = cfg['proxies']
                 m = exchange.load_markets()
                 exchanges.append(exchange)
-                exchange.enableRateLimit = False
+                exchange.enableRateLimit = True
                 exchange.timeout = 60000
                 markets.append(m)
             except Exception as e:
@@ -280,10 +293,15 @@ if __name__ == '__main__':
                         for m in markets[i].keys():
                             if market_filter(markets[i][m]):
                                 tasks.append(
-                                    pool.submit(snap, deepcopy(exchanges[i]), deepcopy(markets[i][m]), current_ts))
+                                    pool.submit(snap, deepcopy(exchanges[i]), deepcopy(markets[i][m]), current_ts,
+                                                args.snap_target))
                     ts = last_ts() + datetime.timedelta(seconds=args.interval)
                     concurrent.futures.wait(tasks, return_when=concurrent.futures.ALL_COMPLETED)
                     tasks = []
                     logging.info('end snap ts={}'.format(datetime.datetime.now()))
             else:
                 time.sleep(0.2)
+
+
+if __name__ == '__main__':
+    bdata()
