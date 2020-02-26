@@ -33,6 +33,7 @@ class BookSnap(Base):
     __tablename__ = 'book_snap'
     book_snap_id = Column(BigInteger, primary_key=True, autoincrement=True)
     ts = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
+    mts = Column(DateTime, nullable=False)
     exchange_market_id = Column(Integer, ForeignKey('exchange_market.exchange_market_id'), nullable=False)
     asks = relationship('BookSnapAsk', backref='book_snap')
     bids = relationship('BookSnapBid', backref='book_snap')

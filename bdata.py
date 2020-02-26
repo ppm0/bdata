@@ -24,7 +24,7 @@ args: Optional[Namespace] = None
 base_list: list = []
 quote_list: list = []
 
-BOOK_LIMIT = 50
+DEFAULT_BOOK_LIMIT = None
 TRADES_LIMIT = 100000
 
 
@@ -58,8 +58,10 @@ def decimalize(book):
 def book_limit(e):
     if e.id == KUCOIN:
         return 100
+    elif e.id == BINANCE:
+        return 5000
     else:
-        return BOOK_LIMIT
+        return DEFAULT_BOOK_LIMIT
 
 
 def ensure_exchange_market(session, exchange, base, quote) -> Tuple[Exchange, ExchangeMarket, Token, Token]:
@@ -94,18 +96,18 @@ def ensure_exchange_market(session, exchange, base, quote) -> Tuple[Exchange, Ex
     return (e, em, bt, qt)
 
 
-def snap_book(ts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote: str):
+def snap_book(mts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote: str):
     logging.info('{}::{} snap book'.format(exchange.id, base + '/' + quote))
     session = Session()
     try:
         (e, em, bt, qt) = ensure_exchange_market(session, exchange, base, quote)
 
         bs = session.query(BookSnap).filter(
-            and_(BookSnap.exchange_market_id == em.exchange_market_id, BookSnap.ts == ts)).first()
+            and_(BookSnap.exchange_market_id == em.exchange_market_id, BookSnap.mts == mts)).first()
         if bs:
             return
 
-        bs = BookSnap(exchange_market_id=em.exchange_market_id, ts=ts)
+        bs = BookSnap(exchange_market_id=em.exchange_market_id, mts=mts)
         session.add(bs)
         b = exchange.fetch_order_book(bt.symbol + '/' + qt.symbol, limit=book_limit(exchange))
         b = decimalize(b)
@@ -241,10 +243,11 @@ def bdata():
     parser = ArgumentParser()
     parser.add_argument('--exchange', required=True)
     parser.add_argument('--interval', default=300, type=int)
-    parser.add_argument('--snap_target', type=SnapTarget, choices=list(SnapTarget), default=SnapTarget.ALL)
+    parser.add_argument('--snap_target', type=SnapTarget, choices=list(SnapTarget), default=SnapTarget.TRADE)
     parser.add_argument('--base', required=True)
     parser.add_argument('--quote', required=True)
     parser.add_argument('--debug', action='store_true')
+    parser.add_argument('--workers', default=16, type=int)
     global args
     args = parser.parse_args()
     if args.exchange == '*':
@@ -285,21 +288,24 @@ def bdata():
             if datetime.datetime.now() > ts:
                 current_ts = ts
                 logging.info('start snap ts={}'.format(current_ts))
-                threads = []
-                with concurrent.futures.ThreadPoolExecutor(max_workers=16) as pool:
-                    tasks = []
-                    for i in range(0, len(exchanges)):
-                        for m in markets[i].keys():
-                            if market_filter(markets[i][m]):
-                                tasks.append(
-                                    pool.submit(snap, deepcopy(exchanges[i]), deepcopy(markets[i][m]), current_ts,
-                                                args.snap_target))
-                    ts = last_ts() + datetime.timedelta(seconds=args.interval)
-                    concurrent.futures.wait(tasks, return_when=concurrent.futures.ALL_COMPLETED)
-                    tasks = []
-                    logging.info('end snap ts={}'.format(datetime.datetime.now()))
+                # with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
+                #     tasks = []
+                #     for i in range(0, len(exchanges)):
+                #         for m in markets[i].keys():
+                #             if market_filter(markets[i][m]):
+                #                 tasks.append(
+                #                     pool.submit(snap, deepcopy(exchanges[i]), deepcopy(markets[i][m]), current_ts,
+                #                                 args.snap_target))
+                #     ts = last_ts() + datetime.timedelta(seconds=args.interval)
+                #     concurrent.futures.wait(tasks, return_when=concurrent.futures.ALL_COMPLETED)
+                for i in range(0, len(exchanges)):
+                    for m in markets[i].keys():
+                        if market_filter(markets[i][m]):
+                            snap(exchanges[i], markets[i][m], current_ts, args.snap_target)
+                ts = last_ts() + datetime.timedelta(seconds=args.interval)
+                logging.info('end snap ts={}'.format(datetime.datetime.now()))
             else:
-                time.sleep(0.2)
+                time.sleep(0.1)
 
 
 if __name__ == '__main__':
