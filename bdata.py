@@ -130,45 +130,53 @@ def snap_trades(ts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote
         try:
             (e, em, bt, qt) = ensure_exchange_market(session, exchange, base, quote)
 
-            max_trade_id = session.query(func.max(Trade.trade_id)). \
-                filter(Trade.exchange_market_id == em.exchange_market_id).first()
-            max_trade_id = max_trade_id and max_trade_id[0]
+            last_eid = ''
+            last = None
 
-            if max_trade_id:
-                last = session.query(Trade).filter(Trade.trade_id == max_trade_id).one()
-                since = last.ts
+            if em.trade_ts:
+                since = em.trade_ts
             else:
-                last = None
-                since = exchange.milliseconds() - exchange.milliseconds() % 86400000 - \
-                        datetime.datetime.now().timetuple().tm_yday * 86400000
+                max_trade_id = session.query(func.max(Trade.trade_id)). \
+                    filter(Trade.exchange_market_id == em.exchange_market_id).first()
+                max_trade_id = max_trade_id and max_trade_id[0]
+
+                if max_trade_id:
+                    last = session.query(Trade).filter(Trade.trade_id == max_trade_id).one()
+                    since = last.ts
+                else:
+                    last = None
+                    since = exchange.milliseconds() - exchange.milliseconds() % 86400000 - \
+                            datetime.datetime.now().timetuple().tm_yday * 86400000
+
+                if last and last.eid:
+                    last_eid = last.eid
+                else:
+                    last_eid = ''
+
             trades_all = []
             market = base + '/' + quote
-            if last and last.eid:
-                last_id = last.eid
-            else:
-                last_id = ''
 
             trades_prior = None
             if exchange.id.startswith(BINANCE):
                 while since < exchange.milliseconds() and len(trades_all) < TRADES_LIMIT:
                     trades_tmp = exchange.fetch_trades(symbol=market, since=since)
                     if json.dumps(trades_prior, sort_keys=True) == json.dumps(trades_tmp, sort_keys=True):
-                        since += 1800000
+                        since += 55 * 60 * 1000
                     else:
                         if len(trades_tmp) > 0:
                             trades_all += trades_tmp
                             since = trades_tmp[-1]['timestamp']
                         else:
-                            since += 1800000
+                            since += 55 * 60 * 1000
                     trades_prior = deepcopy(trades_tmp)
             else:
                 while since < exchange.milliseconds() and len(trades_all) < TRADES_LIMIT:
                     trades_tmp = exchange.fetch_trades(market, since)
                     if len(trades_tmp) > 0:
-                        if last_id == trades_tmp[-1]['id']:
+                        if last_eid == trades_tmp[-1]['id']:
                             break
                         since = trades_tmp[-1]['timestamp']
-                        last_id = trades_tmp[-1]['id']
+                        last_eid = trades_tmp[-1]['id']
                         trades_all += trades_tmp
                     else:
                         break
@@ -199,6 +207,8 @@ def snap_trades(ts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote
                               price=Decimal(str(e['price'])) if e['price'] else 0,
                               amount=Decimal(str(e['amount'])) if e['amount'] else 0,
                               eid=e['id']))
+                em.trade_ts = trades_all[-1]['timestamp']
+                session.add(em)
 
             session.commit()
 

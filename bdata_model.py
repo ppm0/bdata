@@ -25,6 +25,7 @@ class ExchangeMarket(Base):
     exchange_id = Column(Integer, ForeignKey('exchange.exchange_id'), nullable=False)
     base_token_id = Column(Integer, ForeignKey('token.token_id'))
     quote_token_id = Column(Integer, ForeignKey('token.token_id'))
+    trade_ts = Column(BigInteger)
     __table_args__ = (UniqueConstraint('exchange_id', 'base_token_id', 'quote_token_id'),
                       Index('ixu1', 'exchange_id', 'base_token_id', 'quote_token_id', unique=True))
 
