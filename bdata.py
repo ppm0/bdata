@@ -46,6 +46,8 @@ DISABLED_EXCHANGES = ['bitfinex2', 'anxpro', 'bcex', 'vaultoro', 'coss', 'coolco
                       'liquid',  # DDoSProtection liquid
                       'okex3',  # use only okex
                       'fcoin', 'fcoinjp',  # 20200220 exit scam
+                      'bitbay', # fucked up
+                      '_1btcxe', # error - ddos protection
                       ]
 
 
