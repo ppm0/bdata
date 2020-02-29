@@ -1,4 +1,4 @@
-FROM python:3.8.1
+FROM python:3.8.2
 WORKDIR /app
 ADD *.py /app/
 ADD requirements.txt /app/
