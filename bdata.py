@@ -145,8 +145,7 @@ def snap_trades(ts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote
                     since = last.ts
                 else:
                     last = None
-                    since = exchange.milliseconds() - exchange.milliseconds() % 86400000 - \
-                            datetime.datetime.now().timetuple().tm_yday * 86400000
+                    since = exchange.milliseconds() - exchange.milliseconds() % 86400000
 
                 if last and last.eid:
                     last_eid = last.eid
