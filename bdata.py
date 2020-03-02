@@ -247,6 +247,11 @@ def last_ts():
     s = s - (s % args.interval)
     return ts + datetime.timedelta(seconds=s)
 
+def create_exchange(cls):
+    exchange = cls()
+    if exchange.id.startswith('bitfinex'):
+        exchange.rateLimit = 1000
+    return exchange
 
 def bdata():
     cfg = json.loads(open('config.json').read())
@@ -277,7 +282,7 @@ def bdata():
     markets = []
     exchanges = []
     for name in exchange_list:
-        exchange = getattr(ccxt, name)()
+        exchange = create_exchange(getattr(ccxt, name))
         if exchange_filter(exchange):
             try:
                 if 'proxies' in cfg:
