@@ -196,8 +196,8 @@ def snap_trades(ts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote
                 if i2 < len(trades_all):
                     trades_all = trades_all[i2 + 1:]
 
+            logging.info('{}::{} len={}'.format(exchange.id, market, len(trades_all)))
             if len(trades_all) > 0:
-                logging.info('{}::{} len={}'.format(exchange.id, market, len(trades_all)))
                 for e in trades_all:
                     session.add(
                         Trade(exchange_market_id=em.exchange_market_id,
