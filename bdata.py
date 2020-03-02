@@ -130,27 +130,27 @@ def snap_trades(ts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote
         try:
             (e, em, bt, qt) = ensure_exchange_market(session, exchange, base, quote)
 
-            last_eid = ''
-            last = None
+            max_trade_id = session.query(func.max(Trade.trade_id)). \
+                filter(Trade.exchange_market_id == em.exchange_market_id).first()
+            max_trade_id = max_trade_id and max_trade_id[0]
+
+            if max_trade_id:
+                last = session.query(Trade).filter(Trade.trade_id == max_trade_id).one()
+            else:
+                last = None
+
+            if last and last.eid:
+                last_eid = last.eid
+            else:
+                last_eid = ''
 
             if em.trade_ts:
                 since = em.trade_ts
             else:
-                max_trade_id = session.query(func.max(Trade.trade_id)). \
-                    filter(Trade.exchange_market_id == em.exchange_market_id).first()
-                max_trade_id = max_trade_id and max_trade_id[0]
-
                 if max_trade_id:
-                    last = session.query(Trade).filter(Trade.trade_id == max_trade_id).one()
-                    since = last.ts
+                    since = session.query(Trade).filter(Trade.trade_id == max_trade_id).one().ts
                 else:
-                    last = None
                     since = exchange.milliseconds() - exchange.milliseconds() % 86400000
-
-                if last and last.eid:
-                    last_eid = last.eid
-                else:
-                    last_eid = ''
 
             trades_all = []
             market = base + '/' + quote
