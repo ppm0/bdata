@@ -250,7 +250,7 @@ def last_ts():
 def create_exchange(cls):
     exchange = cls()
     if exchange.id.startswith('bitfinex'):
-        exchange.rateLimit = 1000
+        exchange.rateLimit = 3000
     return exchange
 
 def bdata():
