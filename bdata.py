@@ -319,7 +319,7 @@ def bdata():
                         if market_filter(markets[i][m]):
                             snap(exchanges[i], markets[i][m], current_ts, args.snap_target)
                 ts = last_ts() + datetime.timedelta(seconds=args.interval)
-                logging.info('end snap ts={}'.format(datetime.datetime.now()))
+                logging.info('end snap ts={}'.format(current_ts))
             else:
                 time.sleep(0.1)
 
