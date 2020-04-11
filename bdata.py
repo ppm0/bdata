@@ -52,8 +52,8 @@ DISABLED_EXCHANGES = ['bitfinex2', 'anxpro', 'bcex', 'vaultoro', 'coss', 'coolco
 
 
 def decimalize(book):
-    return {'bids': [(Decimal(str(p)), Decimal(str(a))) for p, a in book['bids']],
-            'asks': [(Decimal(str(p)), Decimal(str(a))) for p, a in book['asks']]
+    return {'bids': [(Decimal(str(l[0])), Decimal(str(l[1]))) for l in book['bids']],
+            'asks': [(Decimal(str(l[0])), Decimal(str(l[1]))) for l in book['asks']]
             }
 
 
@@ -111,8 +111,8 @@ def snap_book(mts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote:
 
         bs = BookSnap(exchange_market_id=em.exchange_market_id, mts=mts)
         session.add(bs)
-        b = exchange.fetch_order_book(bt.symbol + '/' + qt.symbol, limit=book_limit(exchange))
-        b = decimalize(b)
+        bo = exchange.fetch_order_book(bt.symbol + '/' + qt.symbol, limit=book_limit(exchange))
+        b = decimalize(bo)
         for (p, a) in b['bids']:
             bs.bids.append(BookSnapBid(price=p, amount=a))
         for (p, a) in b['asks']:
