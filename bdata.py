@@ -1,4 +1,3 @@
-import concurrent.futures
 import datetime
 import json
 import logging
@@ -17,8 +16,8 @@ from bdata_db import Session
 from bdata_model import Token, ExchangeMarket, Exchange, BookSnap, BookSnapBid, BookSnapAsk, Trade
 
 KUCOIN = 'kucoin'
-
 BINANCE = 'binance'
+COINBASEPRO = 'coinbasepro'
 
 args: Optional[Namespace] = None
 base_list: list = []
@@ -46,8 +45,8 @@ DISABLED_EXCHANGES = ['bitfinex2', 'anxpro', 'bcex', 'vaultoro', 'coss', 'coolco
                       'liquid',  # DDoSProtection liquid
                       'okex3',  # use only okex
                       'fcoin', 'fcoinjp',  # 20200220 exit scam
-                      'bitbay', # fucked up
-                      '_1btcxe', # error - ddos protection
+                      'bitbay',  # fucked up
+                      '_1btcxe',  # error - ddos protection
                       ]
 
 
@@ -57,13 +56,20 @@ def decimalize(book):
             }
 
 
-def book_limit(e):
-    if e.id == KUCOIN:
+def book_limit(exchange: ccxt.Exchange):
+    if exchange.id == KUCOIN:
         return 100
-    elif e.id == BINANCE:
+    elif exchange.id == BINANCE:
         return 5000
     else:
         return DEFAULT_BOOK_LIMIT
+
+
+def book_params(exchange: ccxt.Exchange):
+    if exchange.id == COINBASEPRO:
+        return {'level': 3}
+    else:
+        return {}
 
 
 def ensure_exchange_market(session, exchange, base, quote) -> Tuple[Exchange, ExchangeMarket, Token, Token]:
@@ -111,7 +117,8 @@ def snap_book(mts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote:
 
         bs = BookSnap(exchange_market_id=em.exchange_market_id, mts=mts)
         session.add(bs)
-        bo = exchange.fetch_order_book(bt.symbol + '/' + qt.symbol, limit=book_limit(exchange))
+        bo = exchange.fetch_order_book(bt.symbol + '/' + qt.symbol, limit=book_limit(exchange),
+                                       params=book_params(exchange))
         b = decimalize(bo)
         for (p, a) in b['bids']:
             bs.bids.append(BookSnapBid(price=p, amount=a))
@@ -247,11 +254,13 @@ def last_ts():
     s = s - (s % args.interval)
     return ts + datetime.timedelta(seconds=s)
 
+
 def create_exchange(cls):
     exchange = cls()
     if exchange.id.startswith('bitfinex'):
-        exchange.rateLimit = 3000
+        exchange.rateLimit = 5000
     return exchange
+
 
 def bdata():
     cfg = json.loads(open('config.json').read())
