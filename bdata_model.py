@@ -11,6 +11,7 @@ class Exchange(Base):
     __tablename__ = 'exchange'
     exchange_id = Column(Integer, primary_key=True, autoincrement=True)
     symbol = Column(String(50), unique=True, nullable=False)
+    exchange_markets = relationship('ExchangeMarket', backref='exchange', lazy="joined")
 
 
 class Token(Base):
@@ -26,8 +27,12 @@ class ExchangeMarket(Base):
     base_token_id = Column(Integer, ForeignKey('token.token_id'))
     quote_token_id = Column(Integer, ForeignKey('token.token_id'))
     trade_ts = Column(BigInteger)
+    base_token = relationship("Token", foreign_keys=[base_token_id], lazy="joined")
+    quote_token = relationship("Token", foreign_keys=[quote_token_id], lazy="joined")
     __table_args__ = (UniqueConstraint('exchange_id', 'base_token_id', 'quote_token_id'),
                       Index('ixu1', 'exchange_id', 'base_token_id', 'quote_token_id', unique=True))
+    def __repr__(self):
+        return '{}({}/{})'.format(self.exchange.symbol, self.base_token.symbol, self.quote_token.symbol)
 
 
 class BookSnap(Base):

@@ -296,9 +296,11 @@ def bdata():
             try:
                 if 'proxies' in cfg:
                     exchange.proxies = cfg['proxies']
+                    exchange.enableRateLimit = False
+                else:
+                    exchange.enableRateLimit = True
                 m = exchange.load_markets()
                 exchanges.append(exchange)
-                exchange.enableRateLimit = True
                 exchange.timeout = 60000
                 markets.append(m)
             except Exception as e:
