@@ -1,3 +1,4 @@
+import logging
 import time
 
 from sqlalchemy import text
@@ -7,6 +8,7 @@ from bdata_db import Session, engine
 
 def make_stat():
     while True:
+        logging.info('start stats calculation')
         with engine.connect() as con:
             con.execute(text("""
 do
@@ -40,8 +42,11 @@ $$
     end
 $$;
             """))
+        logging.info('stop stats calculation')
         time.sleep(1)
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s.%(msecs)03d %(levelname)-8s %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S')
     make_stat()
