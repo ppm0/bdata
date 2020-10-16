@@ -1,6 +1,7 @@
 import datetime
 
-from sqlalchemy import Column, String, BigInteger, DateTime, Integer, ForeignKey, UniqueConstraint, Index, Numeric
+from sqlalchemy import Column, String, BigInteger, DateTime, Integer, ForeignKey, UniqueConstraint, Index, Numeric, \
+    Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -41,6 +42,7 @@ class BookSnap(Base):
     ts = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
     mts = Column(DateTime, nullable=False)
     exchange_market_id = Column(Integer, ForeignKey('exchange_market.exchange_market_id'), nullable=False)
+    stat = Column(Boolean)
     asks = relationship('BookSnapAsk', backref='book_snap')
     bids = relationship('BookSnapBid', backref='book_snap')
     __table_args__ = (Index('ix_book_snap_1', 'ts', 'exchange_market_id'),)

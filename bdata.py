@@ -126,6 +126,9 @@ def snap_book(mts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote:
             bs.asks.append(BookSnapAsk(price=p, amount=a))
         session.commit()
 
+        bs.stat = False
+        session.add(bs)
+        session.commit()
     finally:
         session.close()
 
