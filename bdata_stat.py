@@ -9,8 +9,8 @@ from bdata_db import Session, engine
 def make_stat():
     while True:
         logging.info('start stats calculation')
-        with engine.connect() as con:
-            con.execute(text("""
+        with engine.connect().execution_options(autocommit=True) as connection:
+            connection.execute(text("""
 do
 $$
     declare
@@ -43,7 +43,7 @@ $$
 $$;
             """))
         logging.info('stop stats calculation')
-        time.sleep(1)
+        time.sleep(10)
 
 
 if __name__ == '__main__':
