@@ -43,7 +43,7 @@ $$
 $$;
             """))
         logging.info('stop stats calculation')
-        time.sleep(10)
+        time.sleep(2)
 
 
 if __name__ == '__main__':
