@@ -14,12 +14,12 @@ def make_stat():
 do
 $$
     declare
-        an   int[] := array [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 30, 40, 50, 60, 70, 80, 90, 100];
-        n    int;
+        an   numeric[] := array [0.01, 0.02, 0.03, 0.05, 0.08, 0.1, 0.2, 0.3, 0.5, 0.8, 1, 2, 3, 5, 8, 10, 20, 30, 50, 80, 100];
+        n    numeric;
         bsid bigint;
         code varchar(20);
     begin
-        for i in 1..10
+        for i in 1..100
             loop
                 bsid := (select max(book_snap_id) from book_snap where stat = false);
                 if bsid is null
@@ -32,13 +32,14 @@ $$
                 foreach n in array an
                     loop
                         code := 'r' || n::text;
-                        insert into book_snap_stat(book_snap_id, code, data) select bsid, code, bookSnapStat(bsid, n);
-                        --raise notice 'code=%', code;
+                        raise notice 'code=%', code;
+                        insert into book_snap_stat(book_snap_id, code, data)
+                        select bsid, code, bookSnapStat(bsid, n);
                     end loop;
                 update book_snap set stat = true where book_snap_id = bsid;
             end loop;
-        delete from book_snap_bid where book_snap_id = bsid;
-        delete from book_snap_ask where book_snap_id = bsid;
+        --delete from book_snap_bid where book_snap_id = bsid;
+        --delete from book_snap_ask where book_snap_id = bsid;
     end
 $$;
             """))
