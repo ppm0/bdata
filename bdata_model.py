@@ -2,6 +2,7 @@ import datetime
 
 from sqlalchemy import Column, String, BigInteger, DateTime, Integer, ForeignKey, UniqueConstraint, Index, Numeric, \
     Boolean
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -32,6 +33,7 @@ class ExchangeMarket(Base):
     quote_token = relationship("Token", foreign_keys=[quote_token_id], lazy="joined")
     __table_args__ = (UniqueConstraint('exchange_id', 'base_token_id', 'quote_token_id'),
                       Index('ixu1', 'exchange_id', 'base_token_id', 'quote_token_id', unique=True))
+
     def __repr__(self):
         return '{}({}/{})'.format(self.exchange.symbol, self.base_token.symbol, self.quote_token.symbol)
 
@@ -46,6 +48,16 @@ class BookSnap(Base):
     asks = relationship('BookSnapAsk', backref='book_snap')
     bids = relationship('BookSnapBid', backref='book_snap')
     __table_args__ = (Index('ix_book_snap_1', 'ts', 'exchange_market_id'),)
+
+
+class BookSnapStat(Base):
+    __tablename__ = 'book_snap_stat'
+    book_snap_stat_id = Column(BigInteger, primary_key=True, autoincrement=True)
+    book_snap_id = Column(BigInteger, ForeignKey('book_snap.book_snap_id', ondelete='cascade'), nullable=False)
+    # code - 0.01, 0.02, 0.03, 0.05, 0.08, 0.1, 0.2, 0.3, 0.5, 0.8, 1, 2, 3, 5, 8, 10, 20, 30, 50, 80, 100
+    code = Column(String(10), nullable=False)
+    data = Column(JSONB)
+    __table_args__ = (Index('ix_book_snap_stat_book_snap_id_code', 'book_snap_id', 'code', unique=True),)
 
 
 class BookSnapAsk(Base):
@@ -77,6 +89,6 @@ class Trade(Base):
     fee = Column(Numeric, nullable=True)
     eid = Column(String(32), nullable=True)
     __table_args__ = (Index('ix_trade_ts_exchange_market_id', 'ts', 'exchange_market_id'),
-                      Index('ix_trade_exchange_market_id_trade_id',  'exchange_market_id', 'trade_id'),
+                      Index('ix_trade_exchange_market_id_trade_id', 'exchange_market_id', 'trade_id'),
                       Index('ix_trade_exchange_market_id_ts', 'exchange_market_id', 'ts')
                       )
