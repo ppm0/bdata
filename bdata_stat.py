@@ -36,8 +36,8 @@ def make_stat_step(connection: Connection):
                         end loop;
                     update book_snap set stat = true where book_snap_id = bsid;
                 end loop;
-            --delete from book_snap_bid where book_snap_id = bsid;
-            --delete from book_snap_ask where book_snap_id = bsid;
+            delete from book_snap_bid where book_snap_id = bsid;
+            delete from book_snap_ask where book_snap_id = bsid;
         end
     $$;
                 """))
