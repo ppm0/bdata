@@ -47,6 +47,12 @@ DISABLED_EXCHANGES = ['bitfinex2', 'anxpro', 'bcex', 'vaultoro', 'coss', 'coolco
                       'fcoin', 'fcoinjp',  # 20200220 exit scam
                       'bitbay',  # fucked up
                       '_1btcxe',  # error - ddos protection
+                      # ExchangeError bitget {"status":"error","ts":1612883459971,"err_code":"invalid-parameter","err_msg":"Failed to convert property value of type \u0027java.lang.String\u0027 to required type \u0027java.lang.Integer\u0027 for property \u0027size\u0027; nested exception is java.lang.NumberFormatException: For input string: \"1612828800000\""}
+                      'bitget',
+                      # DDoSProtection bytetrade 503 Service Unavailable {"code":1,"msg":"Please use websocket to get this data."}
+                      'bytetrade',
+                      # BTC/USDT BadSymbol eterbase {"message":"Invalid market !","_links":{"self":{"href":"/markets/3/trades","templated":false}}}
+                      'eterbase',
                       ]
 
 
