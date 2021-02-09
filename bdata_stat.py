@@ -48,6 +48,7 @@ def make_stat_step() -> None:
 
 
 WORKERS = 2
+DELAY = 5
 
 
 def make_stats():
@@ -61,7 +62,7 @@ def make_stats():
         except Exception as e:
             logging.error(str(e))
             pass
-        time.sleep(0.5)
+        time.sleep(DELAY)
 
 
 if __name__ == '__main__':
