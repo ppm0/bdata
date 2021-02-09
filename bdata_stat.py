@@ -12,7 +12,8 @@ def make_stat_step() -> None:
         connection.execute(text("""
             do $$
                 declare
-                    an   numeric[] := array [0.01, 0.02, 0.03, 0.05, 0.08, 0.1, 0.2, 0.3, 0.5, 0.8, 1, 2, 3, 5, 8, 10, 20, 30, 50, 80, 100];
+                    an   numeric[] := array [0.01, 0.02, 0.03, 0.05, 0.08, 0.1, 0.2, 0.3, 0.5, 0.8, 
+                        1, 2, 3, 5, 8, 10, 20, 30, 50, 80, 100];
                     n    numeric;
                     bsid bigint;
                     code varchar(20);
@@ -46,12 +47,15 @@ def make_stat_step() -> None:
                     """))
 
 
+WORKERS = 2
+
+
 def make_stats():
     while True:
         try:
             logging.info('start stats calculation')
-            with ThreadPoolExecutor(max_workers=8) as ex:
-                for i in range(0, 8):
+            with ThreadPoolExecutor(max_workers=WORKERS) as ex:
+                for i in range(0, WORKERS):
                     ex.submit(make_stat_step)
             logging.info('stop stats calculation')
         except Exception as e:
