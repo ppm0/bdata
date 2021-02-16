@@ -248,11 +248,17 @@ RETRIES = 3
 
 
 def snap(exchange: ccxt.Exchange, market: dict, ts: datetime, snap_target: SnapTarget):
+    ls = Session()
+    base = market['base']
+    quote = market['quote']
+    (e, em, bt, qt) = ensure_exchange_market(ls, exchange, base, quote)
+    if em.disabled:
+        return
     if snap_target in [SnapTarget.ALL, SnapTarget.BOOK]:
         c = 0
         while c < RETRIES:
             try:
-                snap_book(ts, exchange, market['base'], market['quote'])
+                snap_book(ts, exchange, base, quote)
                 break
             except:
                 logging.error(
@@ -266,7 +272,7 @@ def snap(exchange: ccxt.Exchange, market: dict, ts: datetime, snap_target: SnapT
         c = 0
         while c < RETRIES:
             try:
-                snap_trades(ts, exchange, market['base'], market['quote'])
+                snap_trades(ts, exchange, base, quote)
                 break
             except:
                 logging.error(
@@ -279,7 +285,8 @@ def snap(exchange: ccxt.Exchange, market: dict, ts: datetime, snap_target: SnapT
 
 def market_filter(market) -> bool:
     global base_list, quote_list
-    return market['base'] and market['quote'] and \
+    return market['base'] and market['quote']  and \
+        market['active'] and \
         (market['base'] in base_list or base_list[0] == '*') and \
         (market['quote'] in quote_list or quote_list[0] == '*') and '/' in market['symbol']
 

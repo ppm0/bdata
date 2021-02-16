@@ -31,6 +31,7 @@ class ExchangeMarket(Base):
     trade_ts = Column(BigInteger)
     base_token = relationship("Token", foreign_keys=[base_token_id], lazy="joined")
     quote_token = relationship("Token", foreign_keys=[quote_token_id], lazy="joined")
+    disabled = Column(Boolean)
     __table_args__ = (UniqueConstraint('exchange_id', 'base_token_id', 'quote_token_id'),
                       Index('ixu1', 'exchange_id', 'base_token_id', 'quote_token_id', unique=True))
 
