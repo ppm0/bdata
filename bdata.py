@@ -285,10 +285,12 @@ def snap(exchange: ccxt.Exchange, market: dict, ts: datetime, snap_target: SnapT
 
 def market_filter(market) -> bool:
     global base_list, quote_list
-    return market['base'] and market['quote']  and \
-        market['active'] and \
-        (market['base'] in base_list or base_list[0] == '*') and \
-        (market['quote'] in quote_list or quote_list[0] == '*') and '/' in market['symbol']
+    if 'active' in market and not market['active']:
+        return False
+    else:
+        return market['base'] and market['quote'] and \
+               (market['base'] in base_list or base_list[0] == '*') and \
+               (market['quote'] in quote_list or quote_list[0] == '*') and '/' in market['symbol']
 
 
 def exchange_filter(exchange) -> bool:
