@@ -1,11 +1,11 @@
 #!/bin/sh
 
-list='bitfinex binance bittrex kraken hitbtc huobipro poloniex kucoin bitflyer bitstamp cex coinbasepro upbit gemini'
+EXL_LIST='bitfinex binance bittrex kraken hitbtc huobipro poloniex kucoin bitflyer bitstamp cex coinbasepro upbit gemini'
 
 case $1 in
 run)
-  for e in $list; do
-    docker run -itd --name="bdata_"$e"_all_btc" --restart=unless-stopped --memory=1g -v /home/bot/bdata/config.json:/app/config.json bdata python -OO bdata.py --interval=60 --exchange=$e --base=* --quote=BTC --snap_target=trade
+  for E in $EXL_LIST; do
+    docker run -itd --name="bdata_""$E""_all_btc" --restart=unless-stopped --memory=1g -v /home/bot/bdata/config.json:/app/config.json bdata python -OO bdata.py --interval=60 --exchange=$E --base=* --quote=BTC --snap_target=trade
   done
   docker run -itd --name=bdata_all_btc_usd --restart=unless-stopped --memory=1g -v /home/bot/bdata/config.json:/app/config.json bdata python -OO bdata.py --interval=60 --exchange=* --base=BTC --quote=USD --snap_target=trade
   docker run -itd --name=bdata_all_btc_eur --restart=unless-stopped --memory=1g -v /home/bot/bdata/config.json:/app/config.json bdata python -OO bdata.py --interval=60 --exchange=* --base=BTC --quote=EUR --snap_target=trade
@@ -17,8 +17,8 @@ run)
   ;;
 
 start)
-  for e in $list; do
-    docker start "bdata_"$e"_all_btc"
+  for E in $EXL_LIST; do
+    docker start "bdata_""$E""_all_btc"
   done
   docker start bdata_all_btc_usd
   docker start bdata_all_btc_eur
@@ -30,8 +30,8 @@ start)
   ;;
 
 stop)
-  for e in $list; do
-    docker stop "bdata_"$e"_all_btc"
+  for E in $EXL_LIST; do
+    docker stop "bdata_""$E""_all_btc"
   done
   docker stop bdata_all_btc_usd
   docker stop bdata_all_btc_eur
@@ -43,8 +43,8 @@ stop)
   ;;
 
 kill)
-  for e in $list; do
-    docker kill "bdata_"$e"_all_btc"
+  for E in $EXL_LIST; do
+    docker kill "bdata_""$E""_all_btc"
   done
   docker kill bdata_all_btc_usd
   docker kill bdata_all_btc_eur
@@ -56,8 +56,8 @@ kill)
   ;;
 
 rm)
-  for e in $list; do
-    docker rm "bdata_"$e"_all_btc"
+  for E in $EXL_LIST; do
+    docker rm "bdata_""$E""_all_btc"
   done
   docker rm bdata_all_btc_usd
   docker rm bdata_all_btc_eur
@@ -69,7 +69,7 @@ rm)
   ;;
 
 build)
-  cd /home/bot/bdata
+  cd /home/bot/bdata || exit
   docker build -t bdata .
   ;;
 
