@@ -119,168 +119,163 @@ def ensure_exchange_market(session, exchange, base, quote) -> Tuple[Exchange, Ex
     return e, em, bt, qt
 
 
-def snap_book(mts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote: str):
+def snap_book(session, mts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote: str):
     logging.info('{}::{} snap book'.format(exchange.id, base + '/' + quote))
-    session = Session()
+    (e, em, bt, qt) = ensure_exchange_market(session, exchange, base, quote)
+
+    bs = session.query(BookSnap).filter(
+        and_(BookSnap.exchange_market_id == em.exchange_market_id, BookSnap.mts == mts)).first()
+    if bs:
+        return
+
+    bs = BookSnap(exchange_market_id=em.exchange_market_id, mts=mts)
+    session.add(bs)
+    bo = exchange.fetch_order_book(bt.symbol + '/' + qt.symbol, limit=book_limit(exchange),
+                                   params=book_params(exchange))
+    b = decimalize(bo)
+    for (p, a) in b['bids']:
+        bs.bids.append(BookSnapBid(price=p, amount=a))
+    for (p, a) in b['asks']:
+        bs.asks.append(BookSnapAsk(price=p, amount=a))
+    session.commit()
+
+    bs.stat = False
+    session.add(bs)
+    session.commit()
+
+
+def snap_trades(session, ts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote: str):
+    logging.info('{}::{} snap trades'.format(exchange.id, base + '/' + quote))
     try:
         (e, em, bt, qt) = ensure_exchange_market(session, exchange, base, quote)
 
-        bs = session.query(BookSnap).filter(
-            and_(BookSnap.exchange_market_id == em.exchange_market_id, BookSnap.mts == mts)).first()
-        if bs:
-            return
+        max_trade_id = session.query(func.max(Trade.trade_id)). \
+            filter(Trade.exchange_market_id == em.exchange_market_id).first()
+        max_trade_id = max_trade_id and max_trade_id[0]
 
-        bs = BookSnap(exchange_market_id=em.exchange_market_id, mts=mts)
-        session.add(bs)
-        bo = exchange.fetch_order_book(bt.symbol + '/' + qt.symbol, limit=book_limit(exchange),
-                                       params=book_params(exchange))
-        b = decimalize(bo)
-        for (p, a) in b['bids']:
-            bs.bids.append(BookSnapBid(price=p, amount=a))
-        for (p, a) in b['asks']:
-            bs.asks.append(BookSnapAsk(price=p, amount=a))
-        session.commit()
+        if max_trade_id:
+            last = session.query(Trade).filter(Trade.trade_id == max_trade_id).one()
+        else:
+            last = None
 
-        bs.stat = False
-        session.add(bs)
-        session.commit()
-    finally:
-        session.close()
+        if last and last.eid:
+            last_eid = last.eid
+        else:
+            last_eid = ''
 
-
-def snap_trades(ts: datetime.datetime, exchange: ccxt.Exchange, base: str, quote: str):
-    logging.info('{}::{} snap trades'.format(exchange.id, base + '/' + quote))
-    session = Session()
-    try:
-        try:
-            (e, em, bt, qt) = ensure_exchange_market(session, exchange, base, quote)
-
-            max_trade_id = session.query(func.max(Trade.trade_id)). \
-                filter(Trade.exchange_market_id == em.exchange_market_id).first()
-            max_trade_id = max_trade_id and max_trade_id[0]
-
+        if em.trade_ts:
+            since = em.trade_ts
+        else:
             if max_trade_id:
-                last = session.query(Trade).filter(Trade.trade_id == max_trade_id).one()
+                since = session.query(Trade).filter(Trade.trade_id == max_trade_id).one().ts
             else:
-                last = None
+                since = exchange.milliseconds() - exchange.milliseconds() % 86400000
 
-            if last and last.eid:
-                last_eid = last.eid
-            else:
-                last_eid = ''
-
-            if em.trade_ts:
-                since = em.trade_ts
-            else:
-                if max_trade_id:
-                    since = session.query(Trade).filter(Trade.trade_id == max_trade_id).one().ts
+        trades_all = []
+        market = base + '/' + quote
+        max_ts = exchange.milliseconds()
+        trades_prior = None
+        if exchange.id.startswith(BINANCE):
+            while since < max_ts and len(trades_all) < TRADES_LIMIT:
+                trades_tmp = exchange.fetch_trades(symbol=market, since=since)
+                if json.dumps(trades_prior, sort_keys=True) == json.dumps(trades_tmp, sort_keys=True):
+                    since += 55 * 60 * 1000
                 else:
-                    since = exchange.milliseconds() - exchange.milliseconds() % 86400000
-
-            trades_all = []
-            market = base + '/' + quote
-            max_ts = exchange.milliseconds()
-            trades_prior = None
-            if exchange.id.startswith(BINANCE):
-                while since < max_ts and len(trades_all) < TRADES_LIMIT:
-                    trades_tmp = exchange.fetch_trades(symbol=market, since=since)
-                    if json.dumps(trades_prior, sort_keys=True) == json.dumps(trades_tmp, sort_keys=True):
-                        since += 55 * 60 * 1000
-                    else:
-                        if len(trades_tmp) > 0:
-                            trades_all += trades_tmp
-                            since = trades_tmp[-1]['timestamp']
-                        else:
-                            since += 55 * 60 * 1000
-                    trades_prior = deepcopy(trades_tmp)
-            else:
-                while since < max_ts and len(trades_all) < TRADES_LIMIT:
-                    trades_tmp = exchange.fetch_trades(market, since)
                     if len(trades_tmp) > 0:
-                        if last_eid == trades_tmp[-1]['id']:
-                            break
-                        since = trades_tmp[-1]['timestamp']
-                        last_eid = trades_tmp[-1]['id']
                         trades_all += trades_tmp
+                        since = trades_tmp[-1]['timestamp']
                     else:
+                        since += 55 * 60 * 1000
+                trades_prior = deepcopy(trades_tmp)
+        else:
+            while since < max_ts and len(trades_all) < TRADES_LIMIT:
+                trades_tmp = exchange.fetch_trades(market, since)
+                if len(trades_tmp) > 0:
+                    if last_eid == trades_tmp[-1]['id']:
                         break
+                    since = trades_tmp[-1]['timestamp']
+                    last_eid = trades_tmp[-1]['id']
+                    trades_all += trades_tmp
+                else:
+                    break
 
-            # duplicates
-            found = True
-            while found:
-                found = False
-                for i in range(1, len(trades_all)):
-                    if trades_all[i - 1]['id'] == trades_all[i]['id']:
-                        del trades_all[i - 1]
-                        found = True
-                        break
-            if last and last.eid:
-                i2 = 0
-                while (i2 < len(trades_all)) and (trades_all[i2]['id'] != last.eid):
-                    i2 += 1
-                if i2 < len(trades_all):
-                    trades_all = trades_all[i2 + 1:]
+        # duplicates
+        found = True
+        while found:
+            found = False
+            for i in range(1, len(trades_all)):
+                if trades_all[i - 1]['id'] == trades_all[i]['id']:
+                    del trades_all[i - 1]
+                    found = True
+                    break
+        if last and last.eid:
+            i2 = 0
+            while (i2 < len(trades_all)) and (trades_all[i2]['id'] != last.eid):
+                i2 += 1
+            if i2 < len(trades_all):
+                trades_all = trades_all[i2 + 1:]
 
-            logging.info('{}::{} len={}'.format(exchange.id, market, len(trades_all)))
-            if len(trades_all) > 0:
-                for e in trades_all:
-                    session.add(
-                        Trade(exchange_market_id=em.exchange_market_id,
-                              ts=e['timestamp'],
-                              side='B' if e['side'] == 'buy' else 'S',
-                              price=Decimal(str(e['price'])) if e['price'] else 0,
-                              amount=Decimal(str(e['amount'])) if e['amount'] else 0,
-                              eid=e['id']))
-                em.trade_ts = trades_all[-1]['timestamp']
-                session.add(em)
+        logging.info('{}::{} len={}'.format(exchange.id, market, len(trades_all)))
+        if len(trades_all) > 0:
+            for e in trades_all:
+                session.add(
+                    Trade(exchange_market_id=em.exchange_market_id,
+                          ts=e['timestamp'],
+                          side='B' if e['side'] == 'buy' else 'S',
+                          price=Decimal(str(e['price'])) if e['price'] else 0,
+                          amount=Decimal(str(e['amount'])) if e['amount'] else 0,
+                          eid=e['id']))
+            em.trade_ts = trades_all[-1]['timestamp']
+            session.add(em)
 
-            session.commit()
+        session.commit()
 
-            logging.info('{}::{} end'.format(exchange.id, market))
-        except:
-            session.rollback()
-            raise
-    finally:
-        session.close()
+        logging.info('{}::{} end'.format(exchange.id, market))
+    except:
+        session.rollback()
+        raise
 
 
 RETRIES = 3
 
 
 def snap(exchange: ccxt.Exchange, market: dict, ts: datetime, snap_target: SnapTarget):
-    ls = Session()
-    base = market['base']
-    quote = market['quote']
-    (e, em, bt, qt) = ensure_exchange_market(ls, exchange, base, quote)
-    if em.disabled:
-        return
-    if snap_target in [SnapTarget.ALL, SnapTarget.BOOK]:
-        c = 0
-        while c < RETRIES:
-            try:
-                snap_book(ts, exchange, base, quote)
-                break
-            except:
-                logging.error(
-                    '{}::{} {} {}'.format(exchange.id, market['symbol'], sys.exc_info()[0].__name__,
-                                          sys.exc_info()[1]))
-                c = c + 1
-                if c < RETRIES:
-                    time.sleep(5)
+    session = Session()
+    try:
+        base = market['base']
+        quote = market['quote']
+        (e, em, bt, qt) = ensure_exchange_market(session, exchange, base, quote)
+        if em.disabled:
+            return
+        if snap_target in [SnapTarget.ALL, SnapTarget.BOOK]:
+            c = 0
+            while c < RETRIES:
+                try:
+                    snap_book(ts, exchange, base, quote)
+                    break
+                except:
+                    logging.error(
+                        '{}::{} {} {}'.format(exchange.id, market['symbol'], sys.exc_info()[0].__name__,
+                                              sys.exc_info()[1]))
+                    c = c + 1
+                    if c < RETRIES:
+                        time.sleep(5)
 
-    if snap_target in [SnapTarget.ALL, SnapTarget.TRADE]:
-        c = 0
-        while c < RETRIES:
-            try:
-                snap_trades(ts, exchange, base, quote)
-                break
-            except:
-                logging.error(
-                    '{}::{} {} {}'.format(exchange.id, market['symbol'], sys.exc_info()[0].__name__,
-                                          sys.exc_info()[1]))
-                c = c + 1
-                if c < RETRIES:
-                    time.sleep(5)
+        if snap_target in [SnapTarget.ALL, SnapTarget.TRADE]:
+            c = 0
+            while c < RETRIES:
+                try:
+                    snap_trades(session, ts, exchange, base, quote)
+                    break
+                except:
+                    logging.error(
+                        '{}::{} {} {}'.format(exchange.id, market['symbol'], sys.exc_info()[0].__name__,
+                                              sys.exc_info()[1]))
+                    c = c + 1
+                    if c < RETRIES:
+                        time.sleep(5)
+    finally:
+        session.close()
 
 
 def market_filter(market) -> bool:
