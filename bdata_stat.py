@@ -7,7 +7,7 @@ from sqlalchemy import text
 from bdata_db import engine
 
 
-def make_stat_step() -> None:
+def make_stat_step_book() -> None:
     with engine.connect().execution_options(autocommit=True) as connection:
         connection.execute(text("""
             do $$
@@ -44,7 +44,51 @@ def make_stat_step() -> None:
                     delete from book_snap_ask where book_snap_id = any(bsida);
                 end
             $$;
-                    """))
+                        """))
+
+
+def make_stat_step_trade():
+    with engine.connect().execution_options(autocommit=True) as connection:
+        connection.execute(text(
+            """
+            do
+            $$
+                declare
+                    cur record;
+                begin
+                    for cur in
+                        with s1 as (select exchange_market_id,
+                                        coalesce((select max(dt) 
+                                                    from trade1m 
+                                                    where exchange_market_id = em.exchange_market_id) +
+                                                    interval '1m'
+                                            , date_trunc('minute', (select min(to_timestamp(ts::numeric / 1000::numeric))
+                                                                    from trade
+                                                                    where exchange_market_id = em.exchange_market_id))
+                                            ) gst,
+                                            date_trunc('minute', to_timestamp(trade_ts::numeric / 1000::numeric)) -
+                                            interval '1m' gen
+                                    from exchange_market em
+                                    where em.trade_ts is not null and not coalesce(em.disabled, false)
+                                    order by exchange_market_id desc)
+                        select exchange_market_id, gst, gen
+                        from s1
+                        where gst <= gen
+                        order by exchange_market_id
+                        loop
+                            --raise notice '% % %', cur.exchange_market_id, cur.gst, cur.gen;
+                            insert into trade1m(dt, exchange_market_id, o, h, l, c, s, sb, ss, z, zb, zs, n, nb, ns, d)
+                            select dt, vem.exchange_market_id, t.o, t.h, t.l, t.c, t.s, t.sb, t.ss, t.z, t.zb, t.zs, t.n, t.nb,
+                                t.ns, t.d
+                            from generate_series(cur.gst::timestamp, cur.gen::timestamp, interval '1m') dt,
+                                vem,
+                                tradeohlc(vem.exchange_market_id, dt, interval '1m') t
+                            where vem.exchange_market_id = cur.exchange_market_id
+                            limit 60;
+                        end loop;
+                end
+            $$;
+            """))
 
 
 WORKERS = 2
@@ -57,7 +101,8 @@ def make_stats():
             logging.info('start stats calculation')
             with ThreadPoolExecutor(max_workers=WORKERS) as ex:
                 for i in range(0, WORKERS):
-                    ex.submit(make_stat_step)
+                    ex.submit(make_stat_step_book)
+                ex.submit(make_stat_step_trade)
             logging.info('stop stats calculation')
         except Exception as e:
             logging.error(str(e))
