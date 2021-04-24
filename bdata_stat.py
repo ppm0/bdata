@@ -85,7 +85,7 @@ $$
                            t.o, t.h, t.l, t.c, t.s, t.sb, t.ss, t.z, t.zb, t.zs, t.n, t.nb, t.ns, t.d
                     from generate_series(cur.gst::timestamp, cur.gen::timestamp, interval '1m') dt,
                         tradeohlc(cur.exchange_market_id, dt.dt, interval '1m') t
-                    limit 60 * 24
+                    limit 89
                     loop
                         if cur2.n > 0
                         then
