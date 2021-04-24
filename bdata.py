@@ -251,7 +251,7 @@ def snap(exchange: ccxt.Exchange, market: dict, ts: datetime, snap_target: SnapT
             c = 0
             while c < RETRIES:
                 try:
-                    snap_book(ts, exchange, base, quote)
+                    snap_book(session, ts, exchange, base, quote)
                     break
                 except:
                     logging.error(
