@@ -51,43 +51,65 @@ def make_stat_step_trade():
     with engine.connect().execution_options(autocommit=True) as connection:
         connection.execute(text(
             """
-            do
-            $$
-                declare
-                    cur record;
-                begin
-                    for cur in
-                        with s1 as (select exchange_market_id,
-                                        coalesce((select max(dt) 
-                                                    from trade1m 
-                                                    where exchange_market_id = em.exchange_market_id) +
-                                                    interval '1m'
-                                            , date_trunc('minute', (select min(to_timestamp(ts::numeric / 1000::numeric))
-                                                                    from trade
-                                                                    where exchange_market_id = em.exchange_market_id))
-                                            ) gst,
-                                            date_trunc('minute', to_timestamp(trade_ts::numeric / 1000::numeric)) -
-                                            interval '1m' gen
-                                    from exchange_market em
-                                    where em.trade_ts is not null and not coalesce(em.disabled, false)
-                                    order by exchange_market_id desc)
-                        select exchange_market_id, gst, gen
-                        from s1
-                        where gst <= gen
-                        order by exchange_market_id
-                        loop
-                            --raise notice '% % %', cur.exchange_market_id, cur.gst, cur.gen;
+do
+$$
+    declare
+        cur    record;
+        cur2   record;
+        last_c numeric;
+    begin
+        for cur in
+            with s1 as (select exchange_market_id,
+                            coalesce((select max(dt) from trade1m where exchange_market_id = em.exchange_market_id) +
+                                     interval '1m'
+                                , date_trunc('minute', (select min(to_timestamp(ts::numeric / 1000::numeric))
+                                                        from trade
+                                                        where exchange_market_id = em.exchange_market_id))
+                                ) gst,
+                                date_trunc('minute', to_timestamp(trade_ts::numeric / 1000::numeric)) -
+                                interval '1m' gen
+                        from exchange_market em
+                        where em.trade_ts is not null and not coalesce(em.disabled, false)
+                        order by exchange_market_id desc)
+            select exchange_market_id, gst, gen
+            from s1
+            where gst <= gen
+            order by exchange_market_id
+            loop
+                --raise notice '% % %', cur.exchange_market_id, cur.gst, cur.gen;
+                last_c = (select c
+                          from trade1m
+                          where exchange_market_id = cur.exchange_market_id and dt = cur.gst - interval '1m');
+                for cur2 in
+                    select dt as dt,
+                           t.o, t.h, t.l, t.c, t.s, t.sb, t.ss, t.z, t.zb, t.zs, t.n, t.nb, t.ns, t.d
+                    from generate_series(cur.gst::timestamp, cur.gen::timestamp, interval '1m') dt,
+                        tradeohlc(cur.exchange_market_id, dt.dt, interval '1m') t
+                    limit 60 * 24
+                    loop
+                        if cur2.n > 0
+                        then
                             insert into trade1m(dt, exchange_market_id, o, h, l, c, s, sb, ss, z, zb, zs, n, nb, ns, d)
-                            select dt, vem.exchange_market_id, t.o, t.h, t.l, t.c, t.s, t.sb, t.ss, t.z, t.zb, t.zs, t.n, t.nb,
-                                t.ns, t.d
-                            from generate_series(cur.gst::timestamp, cur.gen::timestamp, interval '1m') dt,
-                                vem,
-                                tradeohlc(vem.exchange_market_id, dt, interval '1m') t
-                            where vem.exchange_market_id = cur.exchange_market_id
-                            limit 60;
-                        end loop;
-                end
-            $$;
+                            values (cur2.dt, cur.exchange_market_id,
+                                    cur2.o, cur2.h, cur2.l, cur2.c,
+                                    cur2.s, cur2.sb, cur2.ss,
+                                    cur2.z, cur2.zb, cur2.zs,
+                                    cur2.n, cur2.nb, cur2.ns,
+                                    cur2.d);
+                            last_c = cur2.c;
+                        else
+                            insert into trade1m(dt, exchange_market_id, o, h, l, c, s, sb, ss, z, zb, zs, n, nb, ns, d)
+                            values (cur2.dt, cur.exchange_market_id,
+                                    last_c, last_c, last_c, last_c,
+                                    cur2.s, cur2.sb, cur2.ss,
+                                    cur2.z, cur2.zb, cur2.zs,
+                                    0, 0, 0,
+                                    0);
+                        end if;
+                    end loop;
+            end loop;
+    end;
+$$;
             """))
 
 
