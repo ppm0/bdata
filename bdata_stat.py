@@ -47,10 +47,10 @@ def make_stat_step_book() -> None:
                         """))
 
 
-def make_stat_step_trade():
+def make_stat_step_trade(m: int, n : int):
     with engine.connect().execution_options(autocommit=True) as connection:
         connection.execute(text(
-            """
+            f"""
 do
 $$
     declare
@@ -74,6 +74,7 @@ $$
             select exchange_market_id, gst, gen
             from s1
             where gst <= gen
+                and exchange_market_id % {m} = {n}
             order by exchange_market_id
             loop
                 --raise notice '% % %', cur.exchange_market_id, cur.gst, cur.gen;
@@ -113,7 +114,9 @@ $$;
             """))
 
 
-WORKERS = 2
+WORKERS = 16
+BOOK_WORKERS = 2
+TRADE_WORKERS = 16
 DELAY = 5
 
 
@@ -121,10 +124,11 @@ def make_stats():
     while True:
         try:
             logging.info('start stats calculation')
-            with ThreadPoolExecutor(max_workers=WORKERS) as ex:
-                for i in range(0, WORKERS):
+            with ThreadPoolExecutor(max_workers=BOOK_WORKERS + TRADE_WORKERS) as ex:
+                for i in range(0, BOOK_WORKERS):
                     ex.submit(make_stat_step_book)
-                ex.submit(make_stat_step_trade)
+                for i in range(0, TRADE_WORKERS):
+                    ex.submit(make_stat_step_trade, TRADE_WORKERS, i)
             logging.info('stop stats calculation')
         except Exception as e:
             logging.error(str(e))
