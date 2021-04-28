@@ -1,6 +1,7 @@
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta
 
 from sqlalchemy import text
 
@@ -86,7 +87,7 @@ $$
                            t.o, t.h, t.l, t.c, t.s, t.sb, t.ss, t.z, t.zb, t.zs, t.n, t.nb, t.ns, t.d
                     from generate_series(cur.gst::timestamp, cur.gen::timestamp, interval '1m') dt,
                         tradeohlc(cur.exchange_market_id, dt.dt, interval '1m') t
-                    limit 60 * 1440 + 55
+                    limit 60 * 24 + 55
                     loop
                         if cur2.n > 0
                         then
@@ -114,26 +115,26 @@ $$;
             """))
 
 
-WORKERS = 16
 BOOK_WORKERS = 2
-TRADE_WORKERS = 16
-DELAY = 5
-
+TRADE_WORKERS = 2
 
 def make_stats():
+    next_ts = datetime.now() - timedelta(seconds=1)
     while True:
-        try:
-            logging.info('start stats calculation')
-            with ThreadPoolExecutor(max_workers=BOOK_WORKERS + TRADE_WORKERS) as ex:
-                for i in range(0, BOOK_WORKERS):
-                    ex.submit(make_stat_step_book)
-                for i in range(0, TRADE_WORKERS):
-                    ex.submit(make_stat_step_trade, TRADE_WORKERS, i)
-            logging.info('stop stats calculation')
-        except Exception as e:
-            logging.error(str(e))
-            pass
-        time.sleep(DELAY)
+        if datetime.now() >= next_ts:
+            next_ts = datetime.now() + timedelta(seconds=15)
+            try:
+                logging.info('start stats calculation')
+                with ThreadPoolExecutor(max_workers=BOOK_WORKERS + TRADE_WORKERS) as ex:
+                    for i in range(0, BOOK_WORKERS):
+                        ex.submit(make_stat_step_book)
+                    for i in range(0, TRADE_WORKERS):
+                        ex.submit(make_stat_step_trade, TRADE_WORKERS, i)
+                logging.info('stop stats calculation')
+            except Exception as e:
+                logging.error(str(e))
+                pass
+        time.sleep(1)
 
 
 if __name__ == '__main__':
