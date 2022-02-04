@@ -1,7 +1,7 @@
 import datetime
 
 from sqlalchemy import Column, String, BigInteger, DateTime, Integer, ForeignKey, UniqueConstraint, Index, Numeric, \
-    Boolean
+    Boolean, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -90,6 +90,30 @@ class Trade(Base):
     fee = Column(Numeric, nullable=True)
     eid = Column(String(32), nullable=True)
     __table_args__ = (Index('ix_trade_ts_exchange_market_id', 'ts', 'exchange_market_id'),
-                      Index('ix_trade_exchange_market_id_trade_id', 'exchange_market_id', 'trade_id'),
-                      Index('ix_trade_exchange_market_id_ts', 'exchange_market_id', 'ts')
+                      Index('ix_trade_exchange_market_id_ts', 'exchange_market_id', 'ts'),
+                      Index('ix_trade_exchange_market_id_dts', text('exchange_market_id, to_timestamp(ts / 1000.0)'))
+                      )
+
+
+class Trade1M(Base):
+    __tablename__ = 'trade1m'
+    trade1m_id = Column(BigInteger, primary_key=True, autoincrement=True)
+    exchange_market_id = Column(Integer, ForeignKey('exchange_market.exchange_market_id'), nullable=False)
+    dt = Column(DateTime, nullable=False)
+    o = Column(Numeric)
+    h = Column(Numeric)
+    l = Column(Numeric)
+    c = Column(Numeric)
+    s = Column(Numeric)
+    sb = Column(Numeric)
+    ss = Column(Numeric)
+    z = Column(Numeric)
+    zb = Column(Numeric)
+    zs = Column(Numeric)
+    n = Column(Integer)
+    nb = Column(Integer)
+    ns = Column(Integer)
+    d = Column(Numeric)
+    __table_args__ = (Index('ix_trade1m_exchange_market_id_dt', 'exchange_market_id', 'dt', unique=True),
+                      Index('ix_trade1m_dt_exchange_market_id', 'dt', 'exchange_market_id', unique=True)
                       )

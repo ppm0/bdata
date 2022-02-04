@@ -48,7 +48,7 @@ def make_stat_step_book() -> None:
                         """))
 
 
-def make_stat_step_trade(m: int, n : int):
+def make_stat_step_trade(m: int, n: int):
     with engine.connect().execution_options(autocommit=True) as connection:
         connection.execute(text(
             f"""
@@ -117,6 +117,7 @@ $$;
 
 BOOK_WORKERS = 2
 TRADE_WORKERS = 2
+
 
 def make_stats():
     next_ts = datetime.now() - timedelta(seconds=1)
